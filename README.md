@@ -1,2 +1,2 @@
 # richdatashets-on-richsheets-java
-Implementation of Richdatashets on Richsheets!
+Pluggable Implementation of Richdatashets on top of Richsheets! (in Java)
