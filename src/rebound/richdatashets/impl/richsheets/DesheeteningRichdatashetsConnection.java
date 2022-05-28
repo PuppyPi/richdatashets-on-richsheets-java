@@ -101,6 +101,7 @@ implements RichdatashetsConnection
 				final Integer setFrozenRowsToThisOrDoNothingIfNull;
 				final List<Integer> columnsToAutoResize;
 				final List<RichsheetsRow> dataaaaaaaaaaaToWrite;
+				final List<Integer> newColumnWidths;
 				
 				
 				
@@ -153,6 +154,7 @@ implements RichdatashetsConnection
 						columnsToAutoResize = emptyList();
 						newFrozenRowsCount = 2;
 						columnInsertionIndexRangesInOperationSequenceOrder = new int[0][];
+						newColumnWidths = originalData.getColumnWidths();
 					}
 					else
 					{
@@ -315,7 +317,7 @@ implements RichdatashetsConnection
 					final Map<String, List<Integer>> newColumnIndexesByUID;  //Indexes here start with the first unfrozen column as "0", they aren't the google sheets column indexes!
 					List<Integer> oldIntermediateColumnIndexesGivenNewOverloaded;  //indexes are new ones, values are old ones; if there isn't an old one, the one that was immediately before it is before it was inserted is used :3
 					//int[] newIntermediateColumnIndexesGivenOld;  //indexes are old ones, values are new ones
-					List<List<RichshetsCellContents>> newDataRows;  //like a new version of the intermediate data (intermediate form) except "data rows" meaning no header rows!  (empty list means erase all data, null means don't alter post-header rows!)
+					List<RichsheetsRow> newDataRows;  //like a new version of the intermediate data (intermediate form) except "data rows" meaning no header rows!  (empty list means erase all data, null means don't alter post-header rows!)
 					
 					if (operation != null)
 					{
@@ -486,11 +488,13 @@ implements RichdatashetsConnection
 								
 								
 								//newColumnUIDs
+								//newColumnWidths
 								//newDescriptiveRowCells
 								//columnInsertionIndexRangesInOperationSequenceOrder
 								//oldIntermediateColumnIndexesGivenNewOverloaded
 								{
 									newColumnUIDs = new ArrayList<>(columnUIDs);
+									newColumnWidths = new ArrayList<>(originalData.getColumnWidths());
 									
 									newNonSemanticHeaderRowsCells = new ArrayList<>(newFrozenRowsCount - 1);  //minus the one semantic header row
 									{
@@ -542,9 +546,14 @@ implements RichdatashetsConnection
 											if (insertionPoint == 0)  throw new AssertionError();  //we always insert after columns and we copy the data from the one before (left) not after (right)!
 											int previousColumnOldIndex = insertionPoint - 1;
 											
-											//Copy UID
+											Integer width = originalData.getColumnWidth(previousColumnOldIndex);
+											
+											//Copy UID and width
 											for (int i = 0; i < numberToInsert; i++)
+											{
 												newColumnUIDs.add(insertionPoint, uid);
+												newColumnWidths.add(insertionPoint, width);
+											}
 											
 											//Copy other header rows stuff
 											int nr = newFrozenRowsCount - 1;  //minus the one semantic header row
@@ -679,11 +688,13 @@ implements RichdatashetsConnection
 									int originalDataRowIndex = ourRow.getOriginalDataRowIndex();
 									
 									RichshetsCellContents[] newIntermediateRowA;
+									Integer newRowHeight;
 									{
 										if (originalDataRowIndex == -1)
 										{
 											newIntermediateRowA = new RichshetsCellContents[newNumberOfColumns];
 											Arrays.fill(newIntermediateRowA, RichshetsCellContents.Blank);
+											newRowHeight = null;
 										}
 										else if (originalDataRowIndex < 0)
 										{
@@ -695,7 +706,8 @@ implements RichdatashetsConnection
 												throw new IllegalArgumentException("originalDataRowIndex was too large; it was "+originalDataRowIndex+" but there were only "+(numberOfRows - newFrozenRowsCount)+" data rows in the spreadsheet!  (remember, all indexes here are zero-based X3 )");
 											
 											if (dataDecoded.size() != numberOfRows)  throw new AssertionError();
-											List<RichshetsCellContents> oldRow = new ArrayList<>(dataDecoded.get(newFrozenRowsCount + originalDataRowIndex));
+											List<RichshetsCellContents> oldRow = new ArrayList<>(dataDecoded.get(oldFrozenRowsCount + originalDataRowIndex));
+											newRowHeight = originalData.getRows().get(oldFrozenRowsCount + originalDataRowIndex).getHeight();
 											if (oldRow.size() != numberOfColumns)  throw new AssertionError();
 											
 											//Apply new column insertions to it!
@@ -712,6 +724,7 @@ implements RichdatashetsConnection
 										for (int i = 0; i < n; i++)
 											newIntermediateRowA[newIntermediateColumnIndexesForEachDecodedSingleValueColumn[i]] = toWrite.getCell(i, rowIndex);
 									}
+									
 									
 									//Multi's
 									{
@@ -739,7 +752,7 @@ implements RichdatashetsConnection
 									
 									
 									//Actually add it! XD :D
-									newDataRows.add(asList(newIntermediateRowA));
+									newDataRows.add(new RichsheetsRow(asList(newIntermediateRowA), newRowHeight));
 								}
 							}
 						}
@@ -748,6 +761,7 @@ implements RichdatashetsConnection
 							newDataRows = null;
 							columnInsertionIndexRangesInOperationSequenceOrder = new int[0][];
 							newColumnUIDs = columnUIDs;
+							newColumnWidths = originalData.getColumnWidths();
 							newColumnIndexesByUID = columnIndexesByUID;
 							newNumberOfColumns = numberOfColumns;
 							oldIntermediateColumnIndexesGivenNewOverloaded = null;
@@ -759,8 +773,6 @@ implements RichdatashetsConnection
 								for (int r = 2; r < newFrozenRowsCount; r++)
 									newNonSemanticHeaderRowsCells.add(originalData.getRows().get(r - 2 + 1).getCells());
 							}
-							
-							//TODO more? X3
 						}
 					}
 					else
@@ -770,6 +782,7 @@ implements RichdatashetsConnection
 						newDataRows = null;
 						columnInsertionIndexRangesInOperationSequenceOrder = new int[0][];
 						newColumnUIDs = columnUIDs;
+						newColumnWidths = originalData.getColumnWidths();
 						newColumnIndexesByUID = columnIndexesByUID;
 						newNumberOfColumns = numberOfColumns;
 						oldIntermediateColumnIndexesGivenNewOverloaded = null;
@@ -860,9 +873,9 @@ implements RichdatashetsConnection
 									int n = newDataRows.size();
 									for (int rowIndexAfterHeaderRows = 0; rowIndexAfterHeaderRows < n; rowIndexAfterHeaderRows++)
 									{
-										List<RichshetsCellContents> ourRow = newDataRows.get(rowIndexAfterHeaderRows);
+										RichsheetsRow ourRow = newDataRows.get(rowIndexAfterHeaderRows);
 										
-										List<RichshetsCellContents> theirRowCells = new ArrayList<>(ourRow.size());
+										List<RichshetsCellContents> theirRowCells = new ArrayList<>(ourRow.getCells().size());
 										
 										//Frozen columns at the start are unaffected by our column additions :3
 										for (int columnIndexInRichsheet = 0; columnIndexInRichsheet < frozenColumnsCount; columnIndexInRichsheet++)
@@ -879,13 +892,12 @@ implements RichdatashetsConnection
 										
 										for (int newColumnIndexInIntermediate = 0; newColumnIndexInIntermediate < newNumberOfColumns; newColumnIndexInIntermediate++)
 										{
-											RichshetsCellContents cell = ourRow.get(newColumnIndexInIntermediate);
+											RichshetsCellContents cell = ourRow.getCells().get(newColumnIndexInIntermediate);
 											
 											theirRowCells.add(cell);
 										}
 										
-										RichsheetsRow theirRow = new RichsheetsRow();
-										theirRow.setCells(theirRowCells);
+										RichsheetsRow theirRow = new RichsheetsRow(theirRowCells, ourRow.getHeight());
 										
 										dataaaaaaaaaaaToWrite.add(theirRow);
 									}
@@ -907,11 +919,7 @@ implements RichdatashetsConnection
 					outputTable.setFrozenRows(setFrozenRowsToThisOrDoNothingIfNull);
 				
 				
-				List<Integer> newColumnWidths;
-				{
-					newColumnWidths = new ArrayList<>(originalData.getColumnWidths());
-					applyColumnInsertions(newColumnWidths, columnInsertionIndexRangesInOperationSequenceOrder, null);
-				}
+				outputTable.setColumnWidths(newColumnWidths);
 				
 				
 				return new RichsheetsWriteData(outputTable, asSetThrowing(columnsToAutoResize));
