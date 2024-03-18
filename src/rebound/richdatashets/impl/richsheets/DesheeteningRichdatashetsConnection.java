@@ -33,7 +33,7 @@ import rebound.richsheets.api.operation.RichsheetsOperation.RichsheetsOperationW
 import rebound.richsheets.api.operation.RichsheetsWriteData;
 import rebound.richshets.model.cell.RichshetsCellContents;
 import rebound.richshets.model.cell.RichshetsCellContents.RichshetsTextWrappingStrategy;
-import com.sun.istack.internal.Nullable;
+import javax.annotation.Nullable;
 
 //TODO warnings observer!
 
